@@ -1,0 +1,23 @@
+{
+  "id": "35e336eb-2c98-4260-ac6b-312062cfd271",
+  "metricId": "system.cpu.load_average.1m",
+  "name": "High CPU load detected",
+  "description": "The {metricname} value was {alert_condition} normal behavior. Dimensions: {dims}",
+  "enabled": true,
+  "monitoringStrategy": {
+    "type": "STATIC_THRESHOLD",
+    "violatingSamples": 3,
+    "samples": 5,
+    "dealertingSamples": 5,
+    "alertCondition": "ABOVE",
+    "alertingOnMissingData": false,
+    "threshold": 0.5
+  },
+  "primaryDimensionKey": "dt.entity.otel:host2",
+  "alertCondition": "ABOVE",
+  "samples": 5,
+  "violatingSamples": 3,
+  "dealertingSamples": 5,
+  "threshold": 0.5,
+  "eventType": "CUSTOM_ALERT"
+}

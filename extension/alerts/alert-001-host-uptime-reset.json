@@ -1,0 +1,23 @@
+{
+  "id": "ae40d3f4-9c17-489f-bcf2-95953fa1c698",
+  "metricId": "system.uptime",
+  "name": "Host reboot detected",
+  "description": "The {metricname} value was {alert_condition} normal behavior. Dimensions: {dims}",
+  "enabled": true,
+  "monitoringStrategy": {
+    "type": "STATIC_THRESHOLD",
+    "violatingSamples": 3,
+    "samples": 5,
+    "dealertingSamples": 5,
+    "alertCondition": "BELOW",
+    "alertingOnMissingData": false,
+    "threshold": 250
+  },
+  "primaryDimensionKey": "dt.entity.otel:host2",
+  "alertCondition": "BELOW",
+  "samples": 5,
+  "violatingSamples": 3,
+  "dealertingSamples": 5,
+  "threshold": 250,
+  "eventType": "CUSTOM_ALERT"
+}

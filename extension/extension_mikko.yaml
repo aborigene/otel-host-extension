@@ -1,0 +1,828 @@
+name: custom:opentelemetry
+version: 0.0.24
+minDynatraceVersion: 1.327.0
+author:
+  name: Dynatrace
+
+metrics:
+  - key: system.uptime
+    metadata:
+      displayName: System Uptime
+      unit: Second
+      description: "The amount of time that the system has been running since its last boot."
+
+alertTemplates:
+  - title: "alert template static below"
+    description: "An alert template showing the structure of an alert"
+    # executionSettings:
+    #   queryOffset: 12
+    analyzer:
+      name: "dt.statistics.ui.anomaly_detection.StaticThresholdAnomalyDetectionAnalyzer"
+      input:
+        query: "timeseries system_uptime=avg(system.uptime),by:{`dt.entity.otel:host2`}"
+        threshold: 600
+        alertCondition: "BELOW"
+        alertOnMissingData: false
+        violatingSamples: 3
+    eventTemplate:
+      event.type: AVAILABILITY_EVENT
+      event.name: "host-reboot-detected"
+      event.description: "system.uptime decreased compared to the previous sample, indicating a reboot."
+
+topology:
+  types:
+    - name: otel:host2
+      enabled: true
+      displayName: Host
+      rules:
+        - idPattern: "otel_host_{host.ip}-{host.id}-{host.name}"
+          instanceNamePattern: "{host.name}"
+          iconPattern: host
+          sources:
+            - sourceType: Metrics
+              condition: "$prefix(system.)"
+          requiredDimensions:
+            - key: otel.scope.name
+              valuePattern: $prefix(github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver)
+          attributes:
+            - key: os_type
+              pattern: "{os.type}"
+              displayName: "OS type"
+            - key: host_id
+              pattern: "{host.id}"
+              displayName: "Host ID"
+            - key: host_arch
+              pattern: "{host.arch}"
+              displayName: "Architecture"
+            - key: dt.ip_addresses
+              pattern: "{host.ip}"
+              displayName: "IP address"
+            - key: dt.security_context
+              displayName: Security Context
+              pattern: '{dt.security_context}'
+    - name: otel:process2
+      enabled: true
+      displayName: Process
+      rules:
+        - idPattern: "otel_process_{host.ip}-{host.id}-{host.name}-{process.command_line}"
+          instanceNamePattern: "{process.executable.name}"
+          iconPattern: process
+          sources:
+            - sourceType: Metrics
+              condition: "$prefix(process.)"
+          requiredDimensions:
+            - key: otel.scope.name
+              valuePattern: $prefix(github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver)
+          attributes:
+            - key: process_command_line
+              pattern: "{process.command_line}"
+              displayName: "Process command line"
+            - key: process_pid
+              pattern: "{process.pid}"
+              displayName: "PID"
+            - key: dt.security_context
+              displayName: Security Context
+              pattern: '{dt.security_context}'
+  relationships:
+    - fromType: otel:process2
+      typeOfRelation: RUNS_ON
+      toType: otel:host2
+      enabled: true
+      sources:
+        - sourceType: Metrics
+          condition: "$prefix(process.)"
+    - fromType: otel:host2
+      typeOfRelation: SAME_AS
+      toType: host
+      enabled: true
+      sources:
+        - sourceType: Entities
+          mappingRules:
+            - sourceProperty: dt.ip_addresses
+              sourceTransformation: To lower case
+              destinationProperty: dt.ip_addresses
+              destinationTransformation: To lower case
+screens:
+  - entityType: otel:host2
+    detailsSettings:
+      staticContent:
+        showProblems: true
+        showProperties: true
+        showTags: true
+        showGlobalFilter: true
+        showAddTag: true
+      target: BOTH 
+      layout:
+        autoGenerate: false
+        cards:
+        - type: CARD_GROUP
+          displayName: CPU & memory
+          cards:
+            - type: CHART_GROUP
+              key: cpu
+            - type: CHART_GROUP
+              key: cpu_time
+            - type: CHART_GROUP
+              key: load_average
+            - type: CHART_GROUP
+              key: process_count
+            - type: CHART_GROUP
+              key: processes_created
+            - type: CHART_GROUP
+              key: memory
+            - type: CHART_GROUP
+              key: memory_usage
+            - type: CHART_GROUP
+              key: paging_usage
+            - type: CHART_GROUP
+              key: paging_operations
+            - type: CHART_GROUP
+              key: paging_faults
+        - type: CARD_GROUP
+          displayName: Network
+          cards:
+            - type: CHART_GROUP
+              key: network_io
+            - type: CHART_GROUP
+              key: network_packets
+            - type: CHART_GROUP
+              key: network_errors
+            - type: CHART_GROUP
+              key: network_dropped
+            - type: CHART_GROUP
+              key: connections
+        - type: CARD_GROUP
+          displayName: Disk & filesystem
+          cards:
+            - type: CHART_GROUP
+              key: disk_io
+            - type: CHART_GROUP
+              key: disk_operations
+            - type: CHART_GROUP
+              key: disk_time
+            - type: DQL_TABLE
+              key: disks_dql
+            - type: CHART_GROUP
+              key: filesystem_utilization
+            - type: CHART_GROUP
+              key: filesystem_inodes
+        - type: CARD_GROUP
+          displayName: Processes & system
+          cards:
+            - type: CHART_GROUP
+              key: system_uptime
+            - type: DQL_TABLE
+              key: processes_dql
+    chartsCards:
+      - key: cpu
+        target: BOTH
+        mode: NORMAL
+        numberOfVisibleCharts: 1
+        displayName: CPU
+        chartsInRow: 1
+        charts:
+          - displayName: CPU
+            visualizationType: GRAPH_CHART
+            graphChartConfig:
+              yAxes:
+                - key: left-percent
+                  position: LEFT
+                  min: "0"
+                  max: "100"
+                  visible: true
+              metrics:
+                - metricSelector: system.cpu.utilization:splitBy("dt.entity.otel:host2")
+                  dqlQuery: |-
+                    timeseries cpu_utilization=sum(system.cpu.utilization),by:{`dt.entity.otel:host2`},filter:{`dt.entity.otel:host2`==$(entityId)}
+                  visualization:
+                    displayName: CPU Utilization
+      - key: cpu_time
+        target: BOTH
+        mode: NORMAL
+        numberOfVisibleCharts: 1
+        displayName: CPU Time
+        chartsInRow: 1
+        charts:
+          - displayName: CPU Time
+            visualizationType: GRAPH_CHART
+            graphChartConfig:
+              metrics:
+                - metricSelector: system.cpu.time:splitBy("dt.entity.otel:host2")
+                  dqlQuery: |-
+                    timeseries cpu_time=avg(system.cpu.time),by:{`dt.entity.otel:host2`},filter:{`dt.entity.otel:host2`==$(entityId)}
+                  visualization:
+                    displayName: CPU Time
+      - key: load_average
+        target: BOTH
+        mode: NORMAL
+        numberOfVisibleCharts: 3
+        displayName: Load Average
+        chartsInRow: 3
+        charts:
+          - displayName: Load Average 1m
+            visualizationType: GRAPH_CHART
+            graphChartConfig:
+              metrics:
+                - metricSelector: system.cpu.load_average.1m:splitBy("dt.entity.otel:host2")
+                  dqlQuery: |-
+                    timeseries load_1m=avg(system.cpu.load_average.1m),by:{`dt.entity.otel:host2`},filter:{`dt.entity.otel:host2`==$(entityId)}
+                  visualization:
+                    displayName: Load Average 1m
+          - displayName: Load Average 5m
+            visualizationType: GRAPH_CHART
+            graphChartConfig:
+              metrics:
+                - metricSelector: system.cpu.load_average.5m:splitBy("dt.entity.otel:host2")
+                  dqlQuery: |-
+                    timeseries load_5m=avg(system.cpu.load_average.5m),by:{`dt.entity.otel:host2`},filter:{`dt.entity.otel:host2`==$(entityId)}
+                  visualization:
+                    displayName: Load Average 5m
+          - displayName: Load Average 15m
+            visualizationType: GRAPH_CHART
+            graphChartConfig:
+              metrics:
+                - metricSelector: system.cpu.load_average.15m:splitBy("dt.entity.otel:host2")
+                  dqlQuery: |-
+                    timeseries load_15m=avg(system.cpu.load_average.15m),by:{`dt.entity.otel:host2`},filter:{`dt.entity.otel:host2`==$(entityId)}
+                  visualization:
+                    displayName: Load Average 15m
+      - key: process_count
+        target: BOTH
+        mode: NORMAL
+        numberOfVisibleCharts: 1
+        displayName: Process count
+        chartsInRow: 1
+        charts:
+          - displayName: Process count
+            visualizationType: GRAPH_CHART
+            graphChartConfig:
+              metrics:
+                - metricSelector: system.processes.count:splitBy("dt.entity.otel:host2")
+                  dqlQuery: |-
+                    timeseries processes_count=avg(system.processes.count),by:{`dt.entity.otel:host2`},filter:{`dt.entity.otel:host2`==$(entityId)}
+                  visualization:
+                    displayName: Process count
+      - key: processes_created
+        target: BOTH
+        mode: NORMAL
+        numberOfVisibleCharts: 1
+        displayName: Processes Created
+        chartsInRow: 1
+        charts:
+          - displayName: Processes Created
+            visualizationType: GRAPH_CHART
+            graphChartConfig:
+              metrics:
+                - metricSelector: system.processes.created:splitBy("dt.entity.otel:host2")
+                  dqlQuery: |-
+                    timeseries processes_created=avg(system.processes.created),by:{`dt.entity.otel:host2`},filter:{`dt.entity.otel:host2`==$(entityId)}
+                  visualization:
+                    displayName: Processes Created
+      - key: memory
+        target: BOTH
+        mode: NORMAL
+        numberOfVisibleCharts: 4
+        displayName: Memory
+        chartsInRow: 2
+        charts:
+          - displayName: Memory utilization
+            visualizationType: GRAPH_CHART
+            graphChartConfig:
+              yAxes:
+                - key: left-percent
+                  position: LEFT
+                  min: "0"
+                  max: "100"
+                  visible: true
+              metrics:
+                - metricSelector: system.memory.utilization:splitBy("dt.entity.otel:host2")
+                  dqlQuery: |-
+                    timeseries physical_memory_used_percent=avg(system.memory.utilization),by:{`dt.entity.otel:host2`},filter:{`dt.entity.otel:host2`==$(entityId)}
+      - key: memory_usage
+        target: BOTH
+        mode: NORMAL
+        numberOfVisibleCharts: 1
+        displayName: Memory Usage
+        chartsInRow: 1
+        charts:
+          - displayName: Memory Usage
+            visualizationType: GRAPH_CHART
+            graphChartConfig:
+              metrics:
+                - metricSelector: system.memory.usage:splitBy("dt.entity.otel:host2")
+                  dqlQuery: |-
+                    timeseries memory_usage=avg(system.memory.usage),by:{`dt.entity.otel:host2`},filter:{`dt.entity.otel:host2`==$(entityId)}
+                  visualization:
+                    displayName: Memory Usage
+      - key: paging_usage
+        target: BOTH
+        mode: NORMAL
+        numberOfVisibleCharts: 1
+        displayName: Paging usage
+        chartsInRow: 1
+        charts:
+          - displayName: Paging usage
+            visualizationType: GRAPH_CHART
+            graphChartConfig:
+              metrics:
+                - metricSelector: system.paging.usage:splitBy("dt.entity.otel:host2")
+                  dqlQuery: |-
+                    timeseries paging_usage=avg(system.paging.usage),by:{`dt.entity.otel:host2`},filter:{`dt.entity.otel:host2`==$(entityId)}
+                  visualization:
+                    displayName: Paging usage
+      - key: paging_operations
+        target: BOTH
+        mode: NORMAL
+        numberOfVisibleCharts: 1
+        displayName: Paging Operations
+        chartsInRow: 1
+        charts:
+          - displayName: Paging Operations
+            visualizationType: GRAPH_CHART
+            graphChartConfig:
+              metrics:
+                - metricSelector: system.paging.operations:splitBy("dt.entity.otel:host2")
+                  dqlQuery: |-
+                    timeseries paging_operations=avg(system.paging.operations),by:{`dt.entity.otel:host2`},filter:{`dt.entity.otel:host2`==$(entityId)}
+                  visualization:
+                    displayName: Paging Operations
+      - key: paging_faults
+        target: BOTH
+        mode: NORMAL
+        numberOfVisibleCharts: 1
+        displayName: Paging Faults
+        chartsInRow: 1
+        charts:
+          - displayName: Paging Faults
+            visualizationType: GRAPH_CHART
+            graphChartConfig:
+              metrics:
+                - metricSelector: system.paging.faults:splitBy("dt.entity.otel:host2")
+                  dqlQuery: |-
+                    timeseries paging_faults=avg(system.paging.faults),by:{`dt.entity.otel:host2`},filter:{`dt.entity.otel:host2`==$(entityId)}
+                  visualization:
+                    displayName: Paging Faults
+      - key: network_io
+        target: BOTH
+        mode: NORMAL
+        numberOfVisibleCharts: 4
+        displayName: Network IO
+        chartsInRow: 2
+        charts:
+          - displayName: Network IO
+            visualizationType: GRAPH_CHART
+            graphChartConfig:
+              metrics:
+                - metricSelector: system.network.io:splitBy("dt.entity.otel:host2")
+                  dqlQuery: |-
+                    timeseries network_io=avg(system.network.io),by:{`dt.entity.otel:host2`},filter:{`dt.entity.otel:host2`==$(entityId)}
+      - key: network_packets
+        target: BOTH
+        mode: NORMAL
+        numberOfVisibleCharts: 1
+        displayName: Network Packets
+        chartsInRow: 1
+        charts:
+          - displayName: Network Packets
+            visualizationType: GRAPH_CHART
+            graphChartConfig:
+              metrics:
+                - metricSelector: system.network.packets:splitBy("dt.entity.otel:host2")
+                  dqlQuery: |-
+                    timeseries network_packets=avg(system.network.packets),by:{`dt.entity.otel:host2`},filter:{`dt.entity.otel:host2`==$(entityId)}
+                  visualization:
+                    displayName: Network Packets
+      - key: network_errors
+        target: BOTH
+        mode: NORMAL
+        numberOfVisibleCharts: 1
+        displayName: Network Errors
+        chartsInRow: 1
+        charts:
+          - displayName: Network Errors
+            visualizationType: GRAPH_CHART
+            graphChartConfig:
+              metrics:
+                - metricSelector: system.network.errors:splitBy("dt.entity.otel:host2")
+                  dqlQuery: |-
+                    timeseries network_errors=avg(system.network.errors),by:{`dt.entity.otel:host2`},filter:{`dt.entity.otel:host2`==$(entityId)}
+                  visualization:
+                    displayName: Network Errors
+      - key: network_dropped 
+        target: BOTH
+        mode: NORMAL
+        numberOfVisibleCharts: 1
+        displayName: Network Dropped
+        chartsInRow: 1
+        charts:
+          - displayName: Network Dropped
+            visualizationType: GRAPH_CHART
+            graphChartConfig:
+              metrics:
+                - metricSelector: system.network.dropped:splitBy("dt.entity.otel:host2")
+                  dqlQuery: |-
+                    timeseries network_dropped=avg(system.network.dropped),by:{`dt.entity.otel:host2`},filter:{`dt.entity.otel:host2`==$(entityId)}
+                  visualization:
+                    displayName: Network Dropped
+      - key: connections
+        target: BOTH
+        mode: NORMAL
+        numberOfVisibleCharts: 4
+        displayName: Network connections
+        chartsInRow: 2
+        charts:
+          - displayName: Network connections
+            visualizationType: GRAPH_CHART
+            graphChartConfig:
+              metrics:
+                - metricSelector: system.network.connections:splitBy("dt.entity.otel:host2")
+                  dqlQuery: |-
+                    timeseries connections=avg(system.network.connections),by:{`dt.entity.otel:host2`},filter:{`dt.entity.otel:host2`==$(entityId)}   
+      - key: disk_io
+        target: BOTH
+        mode: NORMAL
+        numberOfVisibleCharts: 4
+        displayName: Disk I/O
+        chartsInRow: 2
+        charts:
+          - displayName: Disk I/O
+            visualizationType: GRAPH_CHART
+            graphChartConfig:
+              metrics:
+                - metricSelector: system.disk.io:splitBy("dt.entity.otel:host2")
+                  dqlQuery: |-
+                    timeseries disk_io=avg(system.disk.io),by:{`dt.entity.otel:host2`},filter:{`dt.entity.otel:host2`==$(entityId)}
+                  visualization:
+                    displayName: Disk I/O
+      - key: disk_operations
+        target: BOTH
+        mode: NORMAL
+        numberOfVisibleCharts: 1
+        displayName: Disk Operations
+        chartsInRow: 1
+        charts:
+          - displayName: Disk Operations
+            visualizationType: GRAPH_CHART
+            graphChartConfig:
+              metrics:
+                - metricSelector: system.disk.operations:splitBy("dt.entity.otel:host2")
+                  dqlQuery: |-
+                    timeseries disk_operations=avg(system.disk.operations),by:{`dt.entity.otel:host2`},filter:{`dt.entity.otel:host2`==$(entityId)}
+                  visualization:
+                    displayName: Disk Operations
+      - key: disk_time
+        target: BOTH
+        mode: NORMAL
+        numberOfVisibleCharts: 2
+        displayName: Disk Time
+        chartsInRow: 2
+        charts:
+          - displayName: Disk Operation Time
+            visualizationType: GRAPH_CHART
+            graphChartConfig:
+              metrics:
+                - metricSelector: system.disk.operation_time:splitBy("dt.entity.otel:host2")
+                  dqlQuery: |-
+                    timeseries disk_operation_time=avg(system.disk.operation_time),by:{`dt.entity.otel:host2`},filter:{`dt.entity.otel:host2`==$(entityId)}
+                  visualization:
+                    displayName: Disk Operation Time
+          - displayName: Disk I/O Time
+            visualizationType: GRAPH_CHART
+            graphChartConfig:
+              metrics:
+                - metricSelector: system.disk.io_time:splitBy("dt.entity.otel:host2")
+                  dqlQuery: |-
+                    timeseries disk_io_time=avg(system.disk.io_time),by:{`dt.entity.otel:host2`},filter:{`dt.entity.otel:host2`==$(entityId)}
+                  visualization:
+                    displayName: Disk I/O Time
+      - key: filesystem_utilization
+        target: BOTH
+        mode: NORMAL
+        numberOfVisibleCharts: 1
+        displayName: Filesystem Utilization
+        chartsInRow: 1
+        charts:
+          - displayName: Filesystem Utilization
+            visualizationType: GRAPH_CHART
+            graphChartConfig:
+              yAxes:
+                - key: left-percent
+                  position: LEFT
+                  min: "0"
+                  max: "100"
+                  visible: true
+              metrics:
+                - metricSelector: system.filesystem.utilization:splitBy("dt.entity.otel:host2")
+                  dqlQuery: |-
+                    timeseries filesystem_utilization=avg(system.filesystem.utilization),by:{mountpoint},filter:{`dt.entity.otel:host2`==$(entityId)}
+      - key: filesystem_inodes
+        target: BOTH
+        mode: NORMAL
+        numberOfVisibleCharts: 1
+        displayName: Filesystem Inodes
+        chartsInRow: 1
+        charts:
+          - displayName: Filesystem Inodes Usage
+            visualizationType: GRAPH_CHART
+            graphChartConfig:
+              metrics:
+                - metricSelector: system.filesystem.inodes.usage:splitBy("dt.entity.otel:host2")
+                  dqlQuery: |-
+                    timeseries filesystem_inodes=avg(system.filesystem.inodes.usage),by:{mountpoint},filter:{`dt.entity.otel:host2`==$(entityId)}
+      - key: system_uptime
+        target: BOTH
+        mode: NORMAL
+        numberOfVisibleCharts: 1
+        displayName: System Uptime
+        chartsInRow: 1
+        charts:
+          - displayName: System Uptime
+            visualizationType: GRAPH_CHART
+            graphChartConfig:
+              metrics:
+                - metricSelector: system.uptime:splitBy("dt.entity.otel:host2")
+                  dqlQuery: |-
+                    timeseries system_uptime=avg(system.uptime),by:{`dt.entity.otel:host2`},filter:{`dt.entity.otel:host2`==$(entityId)}
+                  visualization:
+                    displayName: System Uptime
+    dqlTableCards:
+      - key: disks_dql
+        displayName: Disks
+        query:
+          query: |-
+            timeseries {
+              usage=avg(system.filesystem.usage, scalar:true)
+            }, by: {mountpoint, host.name, state},
+            filter:{`dt.entity.otel:host2`==$(entityId)}
+            | summarize by:{mountpoint}, {
+              free=takeFirst(if(state == "free",usage)),
+              reserved=takeFirst(if(state == "reserved",usage)),
+              used=takeFirst(if(state == "used",usage))
+            }
+        columns:
+          - field: mountpoint
+            displayName: Mountpoint
+            columnType: TEXT
+            widthType: AUTO
+            defaultColumn: true
+            resizable: true
+            sortable: true
+          - field: used
+            displayName: Used
+            columnType: NUMBER
+            widthType: AUTO
+            defaultColumn: false
+            resizable: true
+            sortable: true
+            formatter: unitRenderer|unit=units.data.byte
+          - field: free
+            displayName: Free
+            columnType: NUMBER
+            widthType: AUTO
+            defaultColumn: false
+            resizable: true
+            sortable: true
+            formatter: unitRenderer|unit=units.data.byte
+          - field: reserved
+            displayName: Reserved
+            columnType: NUMBER
+            widthType: AUTO
+            defaultColumn: false
+            resizable: true
+            sortable: true
+            formatter: unitRenderer|unit=units.data.byte
+      - key: processes_dql
+        displayName: Top processes
+        query:
+          query: |-
+            timeseries {
+              cpu_usage = sum(process.cpu.utilization, rollup: avg)
+              ,mem_usage = sum(process.memory.usage, rollup: avg)
+            },
+            by: { `dt.entity.otel:process2`, process.executable.name, host.name }
+            ,filter:{`dt.entity.otel:host2`==$(entityId)}
+            ,from: -2m, to: -1m
+            | fieldsAdd cpu1 = arrayLast(cpu_usage) * 100
+            | fieldsAdd memory = arrayLast(mem_usage)
+            | fieldsAdd process.record = record(entityId=`dt.entity.otel:process2`, 
+              displayName=process.executable.name,
+              dim="dt.entity.otel:process2")
+            | summarize {cpu = sum(cpu1), memory = sum(memory)}, by: { process.record }
+            | sort cpu desc
+            | limit 15
+        columns:
+          - field: process.record
+            displayName: Process
+            columnType: TEXT
+            widthType: AUTO
+            defaultColumn: true
+            resizable: true
+            sortable: true
+            formatter: "entity|mode=intent"
+          - field: cpu
+            displayName: CPU
+            columnType: NUMBER
+            widthType: AUTO
+            defaultColumn: false
+            resizable: true
+            sortable: true
+            formatter: unitRenderer|unit=units.percentage.percent|minimumFractionDigits=2
+          - field: memory
+            displayName: Memory
+            columnType: NUMBER
+            widthType: AUTO
+            defaultColumn: false
+            resizable: true
+            sortable: true
+            formatter: unitRenderer|unit=units.data.byte
+  - entityType: otel:process2
+    detailsSettings:
+      staticContent:
+        showProblems: true
+        showProperties: true
+        showTags: true
+        showGlobalFilter: true
+        showAddTag: true
+      target: BOTH 
+      layout:
+        autoGenerate: false
+        cards:
+        - type: CARD_GROUP
+          displayName: CPU & memory
+          cards:
+            - type: CHART_GROUP
+              key: process_cpu
+            - type: CHART_GROUP
+              key: process_cpu_time
+            - type: CHART_GROUP
+              key: process_memory
+            - type: CHART_GROUP
+              key: process_memory_virtual
+        - type: CARD_GROUP
+          displayName: Disk & I/O
+          cards:
+            - type: CHART_GROUP
+              key: process_disk_io
+            - type: CHART_GROUP
+              key: process_disk_operations
+        - type: CARD_GROUP
+          displayName: System resources
+          cards:
+            - type: CHART_GROUP
+              key: process_threads
+            - type: CHART_GROUP
+              key: process_fd_count
+            - type: CHART_GROUP
+              key: process_context_switches
+    chartsCards:
+      - key: process_cpu
+        target: BOTH
+        mode: NORMAL
+        numberOfVisibleCharts: 1
+        displayName: CPU
+        chartsInRow: 1
+        charts:
+          - displayName: CPU
+            visualizationType: GRAPH_CHART
+            graphChartConfig:
+              yAxes:
+                - key: left-percent
+                  position: LEFT
+                  min: "0"
+                  max: "100"
+                  visible: true
+              metrics:
+                - metricSelector: process.cpu.utilization:splitBy("dt.entity.otel:process2")
+                  dqlQuery: |-
+                    timeseries cpu_utilization=sum(process.cpu.utilization),by:{`dt.entity.otel:process2`},filter:{`dt.entity.otel:process2`==$(entityId)}
+                  visualization:
+                    displayName: CPU Utilization
+      - key: process_cpu_time
+        target: BOTH
+        mode: NORMAL
+        numberOfVisibleCharts: 1
+        displayName: CPU Time
+        chartsInRow: 1
+        charts:
+          - displayName: CPU Time
+            visualizationType: GRAPH_CHART
+            graphChartConfig:
+              metrics:
+                - metricSelector: process.cpu.time:splitBy("dt.entity.otel:process2")
+                  dqlQuery: |-
+                    timeseries cpu_time=avg(process.cpu.time),by:{`dt.entity.otel:process2`},filter:{`dt.entity.otel:process2`==$(entityId)}
+                  visualization:
+                    displayName: CPU Time
+      - key: process_memory
+        target: BOTH
+        mode: NORMAL
+        numberOfVisibleCharts: 4
+        displayName: Memory
+        chartsInRow: 2
+        charts:
+          - displayName: Memory usage
+            visualizationType: GRAPH_CHART
+            graphChartConfig:
+              metrics:
+                - metricSelector: process.memory.usage:splitBy("dt.entity.otel:process2")
+                  dqlQuery: |-
+                    timeseries memory_usage=avg(process.memory.usage),by:{`dt.entity.otel:process2`},filter:{`dt.entity.otel:process2`==$(entityId)}
+      - key: process_memory_virtual
+        target: BOTH
+        mode: NORMAL
+        numberOfVisibleCharts: 1
+        displayName: Virtual Memory
+        chartsInRow: 1
+        charts:
+          - displayName: Virtual Memory Usage
+            visualizationType: GRAPH_CHART
+            graphChartConfig:
+              metrics:
+                - metricSelector: process.memory.virtual:splitBy("dt.entity.otel:process2")
+                  dqlQuery: |-
+                    timeseries virtual_memory=avg(process.memory.virtual),by:{`dt.entity.otel:process2`},filter:{`dt.entity.otel:process2`==$(entityId)}
+                  visualization:
+                    displayName: Virtual Memory Usage
+      - key: process_disk_io
+        target: BOTH
+        mode: NORMAL
+        numberOfVisibleCharts: 1
+        displayName: Disk I/O
+        chartsInRow: 1
+        charts:
+          - displayName: Disk I/O
+            visualizationType: GRAPH_CHART
+            graphChartConfig:
+              metrics:
+                - metricSelector: process.disk.io:splitBy("dt.entity.otel:process2")
+                  dqlQuery: |-
+                    timeseries disk_io=avg(process.disk.io),by:{`dt.entity.otel:process2`},filter:{`dt.entity.otel:process2`==$(entityId)}
+                  visualization:
+                    displayName: Disk I/O
+      - key: process_disk_operations
+        target: BOTH
+        mode: NORMAL
+        numberOfVisibleCharts: 1
+        displayName: Disk Operations
+        chartsInRow: 1
+        charts:
+          - displayName: Disk Operations
+            visualizationType: GRAPH_CHART
+            graphChartConfig:
+              metrics:
+                - metricSelector: process.disk.operations:splitBy("dt.entity.otel:process2")
+                  dqlQuery: |-
+                    timeseries disk_operations=avg(process.disk.operations),by:{`dt.entity.otel:process2`},filter:{`dt.entity.otel:process2`==$(entityId)}
+                  visualization:
+                    displayName: Disk Operations
+      - key: process_threads
+        target: BOTH
+        mode: NORMAL
+        numberOfVisibleCharts: 1
+        displayName: Threads
+        chartsInRow: 1
+        charts:
+          - displayName: Thread Count
+            visualizationType: GRAPH_CHART
+            graphChartConfig:
+              metrics:
+                - metricSelector: process.threads:splitBy("dt.entity.otel:process2")
+                  dqlQuery: |-
+                    timeseries threads=avg(process.threads),by:{`dt.entity.otel:process2`},filter:{`dt.entity.otel:process2`==$(entityId)}
+                  visualization:
+                    displayName: Thread Count
+      - key: process_fd_count
+        target: BOTH
+        mode: NORMAL
+        numberOfVisibleCharts: 1
+        displayName: File Descriptors
+        chartsInRow: 1
+        charts:
+          - displayName: File Descriptor Count
+            visualizationType: GRAPH_CHART
+            graphChartConfig:
+              metrics:
+                - metricSelector: process.fd.count:splitBy("dt.entity.otel:process2")
+                  dqlQuery: |-
+                    timeseries fd_count=avg(process.fd.count),by:{`dt.entity.otel:process2`},filter:{`dt.entity.otel:process2`==$(entityId)}
+                  visualization:
+                    displayName: File Descriptor Count
+      - key: process_context_switches
+        target: BOTH
+        mode: NORMAL
+        numberOfVisibleCharts: 1
+        displayName: Context Switches
+        chartsInRow: 1
+        charts:
+          - displayName: Context Switches
+            visualizationType: GRAPH_CHART
+            graphChartConfig:
+              metrics:
+                - metricSelector: process.context_switches:splitBy("dt.entity.otel:process2")
+                  dqlQuery: |-
+                    timeseries context_switches=avg(process.context_switches),by:{`dt.entity.otel:process2`},filter:{`dt.entity.otel:process2`==$(entityId)}
+                  visualization:
+                    displayName: Context Switches
+alerts:
+  - path: alerts/alert-001-host-uptime-reset.json
+  - path: alerts/alert-002-high-cpu-load.json

@@ -1,0 +1,23 @@
+{
+  "id": "cpu-utilization-alert-001",
+  "metricId": "system.cpu.utilization",
+  "name": "High CPU utilization",
+  "description": "The {metricname} value was {alert_condition} normal behavior. Dimensions: {dims}",
+  "enabled": true,
+  "monitoringStrategy": {
+    "type": "STATIC_THRESHOLD",
+    "violatingSamples": 3,
+    "samples": 5,
+    "dealertingSamples": 5,
+    "alertCondition": "ABOVE",
+    "alertingOnMissingData": false,
+    "threshold": 80
+  },
+  "primaryDimensionKey": "dt.entity.otel:host2",
+  "alertCondition": "ABOVE",
+  "samples": 5,
+  "violatingSamples": 3,
+  "dealertingSamples": 5,
+  "threshold": 80,
+  "eventType": "CUSTOM_ALERT"
+}
