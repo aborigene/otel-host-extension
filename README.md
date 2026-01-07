@@ -97,10 +97,11 @@ The extension also includes an alert template demonstrating static threshold ano
 
 ## Installation
 
-1. Download the extension package (version 0.0.24)
-2. Upload to your Dynatrace environment via the Hub
-3. Activate the extension
-4. Configure your OpenTelemetry Collector to send metrics to Dynatrace
+1. Clone this repo
+2. Open this on VSCode
+3. Use the Dynatrace Extension for VSCode to build and deploy the extension
+4. Activate the extension on the UI
+5. Configure your OpenTelemetry Collector to send metrics to Dynatrace
 
 ## Configuration
 
